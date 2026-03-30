@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, ScatterChart, Scatter,
+  XAxis, YAxis, ZAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts'
 import api from '../api/axios'
@@ -66,6 +67,18 @@ function OnboardingBanner() {
   )
 }
 
+function ScatterDot(props) {
+  const { cx, cy, payload } = props
+  return (
+    <circle
+      cx={cx} cy={cy} r={5}
+      fill={getMoodColor(payload.mood)}
+      fillOpacity={0.75}
+      stroke="#fff" strokeWidth={1}
+    />
+  )
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [analytics, setAnalytics] = useState(null)
@@ -118,6 +131,19 @@ export default function Dashboard() {
     count: d.count,
   }))
 
+  const dowData = (analytics?.day_of_week_trends ?? []).map((d) => ({
+    day:        d.day,
+    'Avg Mood': d.avg_mood,
+    'Anxiety':  d.avg_anxiety,
+    count:      d.count,
+  }))
+
+  const scatterData = (analytics?.checkin_points ?? []).map((p) => ({
+    anxiety: p.anxiety,
+    mood:    p.mood,
+    energy:  p.energy,
+  }))
+
   // Greeting based on time of day
   const hour = new Date().getHours()
   const greeting =
@@ -164,8 +190,8 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Row 1: Mood trend (wide) | Day-of-week pattern */}
           <div className="dashboard-grid">
-            {/* Trend chart */}
             <div className="card">
               <h2>Mood Trend — Last 14 Days</h2>
               {trendData.length === 0 ? (
@@ -195,14 +221,92 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* Day-of-week pattern */}
+            <div className="card">
+              <h2>Day-of-Week Pattern</h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem', marginTop: '-0.25rem' }}>
+                Average mood and anxiety by day
+              </p>
+              {dowData.every((d) => d['Avg Mood'] === null) ? (
+                <div className="empty-state" style={{ padding: '1.5rem 0' }}>
+                  <span className="empty-icon">📅</span>
+                  <p>Log check-ins across different days to see patterns.</p>
+                </div>
+              ) : (
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <ComposedChart data={dowData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#718096' }} />
+                      <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: '#718096' }} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}
+                        formatter={(value, name) => value === null ? ['No data', name] : [Number(value).toFixed(1), name]}
+                      />
+                      <Bar dataKey="Avg Mood" fill="#5C6BC0" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                      <Line type="monotone" dataKey="Anxiety" stroke="#EF9A9A" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                  <div className="chart-legend">
+                    <span><span style={{ color: '#5C6BC0' }}>■</span> Avg Mood</span>
+                    <span><span style={{ color: '#EF9A9A' }}>—</span> Avg Anxiety</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Mood vs Anxiety scatter | Distribution + Recent */}
+          <div className="dashboard-grid" style={{ marginTop: '1.25rem' }}>
+            <div className="card">
+              <h2>Mood vs Anxiety</h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem', marginTop: '-0.25rem' }}>
+                Each dot is one check-in — colour shows mood level
+              </p>
+              {scatterData.length === 0 ? (
+                <div className="empty-state" style={{ padding: '1.5rem 0' }}>
+                  <span className="empty-icon">🔵</span>
+                  <p>Scatter plot will appear after your first check-in.</p>
+                </div>
+              ) : (
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <ScatterChart margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis
+                        type="number" dataKey="anxiety" name="Anxiety"
+                        domain={[1, 10]} tick={{ fontSize: 11, fill: '#718096' }}
+                        label={{ value: 'Anxiety', position: 'insideBottom', offset: -2, fontSize: 11, fill: '#718096' }}
+                      />
+                      <YAxis
+                        type="number" dataKey="mood" name="Mood"
+                        domain={[1, 10]} tick={{ fontSize: 11, fill: '#718096' }}
+                        label={{ value: 'Mood', angle: -90, position: 'insideLeft', offset: 12, fontSize: 11, fill: '#718096' }}
+                      />
+                      <ZAxis range={[40, 40]} />
+                      <Tooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}
+                        formatter={(value, name) => [value, name]}
+                      />
+                      <Scatter data={scatterData} shape={<ScatterDot />} />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                  <div className="chart-legend">
+                    <span style={{ color: '#E53E3E' }}>● Low mood</span>
+                    <span style={{ color: '#D69E2E' }}>● Okay</span>
+                    <span style={{ color: '#38A169' }}>● Good mood</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {/* Distribution */}
               <div className="card">
                 <h2>Mood Distribution</h2>
                 {totalCheckins === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                    No data yet.
-                  </p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No data yet.</p>
                 ) : (
                   <div className="chart-container">
                     <ResponsiveContainer width="100%" height={165}>

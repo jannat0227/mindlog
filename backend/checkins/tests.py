@@ -70,8 +70,7 @@ class CheckInTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Only the current user's checkin should appear
-        results = response.data.get('results', response.data)
-        self.assertEqual(len(results), 1)
+        self.assertEqual(len(response.data), 1)
 
     # --- Auth ---
 

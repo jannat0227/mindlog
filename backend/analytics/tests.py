@@ -47,6 +47,8 @@ class AnalyticsTrendViewTests(APITestCase):
         self.assertIn('weekly_trends', response.data)
         self.assertIn('overall', response.data)
         self.assertIn('mood_distribution', response.data)
+        self.assertIn('day_of_week_trends', response.data)
+        self.assertIn('checkin_points', response.data)
         self.assertIn('total_checkins', response.data)
         self.assertIn('total_journal_entries', response.data)
 
@@ -79,6 +81,32 @@ class AnalyticsTrendViewTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.data['total_checkins'], 0)
         self.assertIsNone(response.data['overall']['avg_mood'])
+
+    def test_day_of_week_trends_has_7_entries(self):
+        self._create_checkins()
+        response = self.client.get(self.url)
+        dow = response.data['day_of_week_trends']
+        self.assertEqual(len(dow), 7)
+        days = [entry['day'] for entry in dow]
+        self.assertEqual(days, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+
+    def test_day_of_week_trends_empty_days_have_null_averages(self):
+        response = self.client.get(self.url)
+        dow = response.data['day_of_week_trends']
+        self.assertEqual(len(dow), 7)
+        for entry in dow:
+            self.assertIsNone(entry['avg_mood'])
+            self.assertEqual(entry['count'], 0)
+
+    def test_checkin_points_only_own_data(self):
+        self._create_checkins()
+        response = self.client.get(self.url)
+        points = response.data['checkin_points']
+        self.assertEqual(len(points), 3)
+        for point in points:
+            self.assertIn('mood', point)
+            self.assertIn('anxiety', point)
+            self.assertIn('energy', point)
 
 
 class IntegrationTest(APITestCase):
@@ -132,3 +160,5 @@ class IntegrationTest(APITestCase):
         self.assertEqual(analytics_response.status_code, status.HTTP_200_OK)
         self.assertEqual(analytics_response.data['total_checkins'], 1)
         self.assertEqual(analytics_response.data['total_journal_entries'], 1)
+        self.assertEqual(len(analytics_response.data['day_of_week_trends']), 7)
+        self.assertEqual(len(analytics_response.data['checkin_points']), 1)
